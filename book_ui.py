@@ -1,6 +1,8 @@
 from flask import Flask, request, render_template_string, Response, redirect
 from uuid import uuid4
 import json, queue, threading, time
+from dotenv import load_dotenv
+load_dotenv()
 
 from notion_client_registry import CLIENTS
 from client_intelligence_engine import run_client_pipeline_stream
