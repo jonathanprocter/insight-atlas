@@ -1,0 +1,12 @@
+{
+  "formulation": {
+    "anthropic/claude-3-haiku": {
+      "runs": 1,
+      "avg": 1.0
+    },
+    "openai/gpt-4o-mini": {
+      "runs": 1,
+      "avg": 1.0
+    }
+  }
+}
