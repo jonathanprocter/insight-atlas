@@ -1,12 +1,59 @@
-import requests, os, json
+import requests, os, json, platform, sys
 import numpy as np
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 MEMORY_PATH = os.path.join(os.path.dirname(__file__), "resource_memory.json")
 
-PCLOUD_BASE = os.path.expanduser("~/pCloud Drive")
-FAISS_INDEX_PATH = os.path.expanduser("~/Desktop/book_index.faiss")
-FAISS_META_PATH = os.path.expanduser("~/Desktop/book_index_meta.json")
+# ---------- AUTO-DETECT pCloud ----------
+
+def find_pcloud():
+    """Find pCloud mount path on macOS, Windows, or Linux."""
+    override = os.getenv("PCLOUD_BASE")
+    if override:
+        p = os.path.expanduser(override)
+        if os.path.isdir(p):
+            return p
+
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(home, "pCloud Drive"),       # macOS default
+        os.path.join(home, "pCloudDrive"),         # macOS alternate
+        os.path.join(home, "pCloud Sync"),         # Linux
+        os.path.join(home, "pCloudSync"),          # Linux alternate
+    ]
+    if platform.system() == "Windows":
+        for letter in "PDEFGHIJKLMNOPQRSTUVWXYZ":
+            candidates.append(f"{letter}:\\pCloud")
+            candidates.append(f"{letter}:\\")
+
+    for path in candidates:
+        if os.path.isdir(path):
+            return path
+    return None
+
+PCLOUD_BASE = find_pcloud()
+
+def _find_faiss_files():
+    """Find FAISS index: check pCloud first, then Desktop fallback."""
+    override_idx = os.getenv("FAISS_INDEX_PATH")
+    override_meta = os.getenv("FAISS_META_PATH")
+    if override_idx and override_meta:
+        return os.path.expanduser(override_idx), os.path.expanduser(override_meta)
+
+    locations = []
+    if PCLOUD_BASE:
+        locations.append(os.path.join(PCLOUD_BASE, "InsightAtlas"))
+    locations.append(os.path.expanduser("~/Desktop"))
+    locations.append(os.path.dirname(os.path.abspath(__file__)))
+
+    for loc in locations:
+        idx = os.path.join(loc, "book_index.faiss")
+        meta = os.path.join(loc, "book_index_meta.json")
+        if os.path.exists(idx) and os.path.exists(meta):
+            return idx, meta
+    return None, None
+
+FAISS_INDEX_PATH, FAISS_META_PATH = _find_faiss_files()
 
 # ---------- MEMORY ----------
 
@@ -47,6 +94,8 @@ def call_model(prompt, max_tokens=800):
 def scan_pcloud_library():
     """Walk pCloud directories for clinical resources."""
     resources = []
+    if not PCLOUD_BASE:
+        return resources
     scan_dirs = [
         os.path.join(PCLOUD_BASE, d) for d in [
             "E-Book & Audiobook Library",
@@ -104,6 +153,8 @@ def _load_faiss():
         return True
     try:
         import faiss
+        if not FAISS_INDEX_PATH or not FAISS_META_PATH:
+            return False
         if not os.path.exists(FAISS_INDEX_PATH) or not os.path.exists(FAISS_META_PATH):
             return False
         _faiss_index = faiss.read_index(FAISS_INDEX_PATH)
